@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:7.0
+    container_name: soc-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - soc-network
+
+  # Python AI/ML Microservice
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: soc-ai-service
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    networks:
+      - soc-network
+
+  # Node.js + Express Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: soc-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/soc-assistant
+      - JWT_SECRET=${JWT_SECRET:-super-secret-production-jwt-key}
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:5173}
+      - WAZUH_MODE=${WAZUH_MODE:-self-hosted}
+      - WAZUH_API_URL=${WAZUH_API_URL:-https://wazuh-manager:55000}
+      - WAZUH_API_USERNAME=${WAZUH_API_USERNAME:-wazuh-wui}
+      - WAZUH_API_PASSWORD=${WAZUH_API_PASSWORD:-}
+      - WAZUH_VERIFY_SSL=${WAZUH_VERIFY_SSL:-false}
+      - WAZUH_INTEGRATION_SECRET=${WAZUH_INTEGRATION_SECRET:-}
+      - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}
+      - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY:-}
+      - SHODAN_API_KEY=${SHODAN_API_KEY:-}
+      - AI_SERVICE_URL=http://ai-service:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEMO_MODE=${DEMO_MODE:-false}
+    depends_on:
+      - mongodb
+      - ai-service
+    networks:
+      - soc-network
+
+  # React Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: soc-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - soc-network
+
+networks:
+  soc-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
+    driver: local
